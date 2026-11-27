@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WazePT Abreviaturas
 // @namespace    https://greasyfork.org/en/users/1559074-xtryker
-// @version      17.0.2
+// @version      17.0.3
 // @description  Script para o Waze Map Editor que automatiza a normalização de endereços de rua em Portugal, seguindo as convenções de abreviaturas do Wazeopedia PT. As regras (abreviaturas, correções, erros ortográficos, lista branca…) e a lista de editores autorizados vivem numa base de dados Firebase, geridas pelos administradores no painel de administração.
 // @author       Xtryker
 // @copyright    Xtryker 2026
