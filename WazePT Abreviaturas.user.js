@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WazePT Abreviaturas
 // @namespace    https://greasyfork.org/en/users/1559074-xtryker
-// @version      17.0.1
+// @version      17.0.2
 // @description  Script para o Waze Map Editor que automatiza a normalização de endereços de rua em Portugal, seguindo as convenções de abreviaturas do Wazeopedia PT. As regras (abreviaturas, correções, erros ortográficos, lista branca…) e a lista de editores autorizados vivem numa base de dados Firebase, geridas pelos administradores no painel de administração.
 // @author       Xtryker
 // @copyright    Xtryker 2026
@@ -19,8 +19,8 @@
 // @connect      raw.githubusercontent.com
 // @run-at       document-idle
 // @license      All Rights Reserved; sem permissão para copiar, redistribuir ou modificar sem autorização escrita do autor
-// @updateURL    https://github.com/Xtryker/WazePT-Abreviaturas/raw/refs/heads/main/WazePT%20Abreviaturas
-// @downloadURL  https://github.com/Xtryker/WazePT-Abreviaturas/raw/refs/heads/main/WazePT%20Abreviaturas
+// @updateURL    https://github.com/Xtryker/WazePT-Abreviaturas/raw/refs/heads/main/WazePT%20Abreviaturas.user.js
+// @downloadURL  https://github.com/Xtryker/WazePT-Abreviaturas/raw/refs/heads/main/WazePT%20Abreviaturas.user.js
 // ==/UserScript==
 
 (function () {
@@ -36,7 +36,7 @@
       const v = typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version;
       if (v && /^\d+(\.\d+)*$/.test(String(v).trim())) return String(v).trim();
     } catch (e) { /* ignora */ }
-    return '17.0.1';
+    return '17.0.2';
   })();
 
   // Logs detalhados desligados por omissão. Para ligar em depuração:
@@ -4647,11 +4647,11 @@
   // MANTER EM SINTONIA com as linhas // @updateURL / // @downloadURL e com
   // as // @connect github.com / raw.githubusercontent.com do cabeçalho.
   // ==================================================================
-  const UPDATE_INSTALL_URL = 'https://github.com/Xtryker/WazePT-Abreviaturas/raw/refs/heads/main/WazePT%20Abreviaturas';
+  const UPDATE_INSTALL_URL = 'https://github.com/Xtryker/WazePT-Abreviaturas/raw/refs/heads/main/WazePT%20Abreviaturas.user.js';
   // A verificação lê o mesmo ficheiro directamente do raw.githubusercontent
   // com um parâmetro anti-cache, para a CDN do GitHub (~5 min) não esconder
   // uma versão acabada de publicar.
-  const UPDATE_META_URL = 'https://raw.githubusercontent.com/Xtryker/WazePT-Abreviaturas/refs/heads/main/WazePT%20Abreviaturas';
+  const UPDATE_META_URL = 'https://raw.githubusercontent.com/Xtryker/WazePT-Abreviaturas/refs/heads/main/WazePT%20Abreviaturas.user.js';
   // Vários separadores abertos ao mesmo tempo reutilizam o último resultado.
   const UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 1000;
   const UPDATE_RECHECK_EVERY_MS = 60 * 60 * 1000;
