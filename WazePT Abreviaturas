@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WazePT Abreviaturas
 // @namespace    https://greasyfork.org/en/users/1559074-xtryker
-// @version      17.0
+// @version      17.0.1
 // @description  Script para o Waze Map Editor que automatiza a normalização de endereços de rua em Portugal, seguindo as convenções de abreviaturas do Wazeopedia PT. As regras (abreviaturas, correções, erros ortográficos, lista branca…) e a lista de editores autorizados vivem numa base de dados Firebase, geridas pelos administradores no painel de administração.
 // @author       Xtryker
 // @copyright    Xtryker 2026
@@ -36,7 +36,7 @@
       const v = typeof GM_info !== 'undefined' && GM_info && GM_info.script && GM_info.script.version;
       if (v && /^\d+(\.\d+)*$/.test(String(v).trim())) return String(v).trim();
     } catch (e) { /* ignora */ }
-    return '17.0';
+    return '17.0.1';
   })();
 
   // Logs detalhados desligados por omissão. Para ligar em depuração:
@@ -893,9 +893,36 @@
   // ERROS ORTOGRÁFICOS E CORRECÇÕES — as listas vêm dos dados.
   // ------------------------------------------------------------------
 
+  // Marcadores legíveis nas regras de expressão regular. Sem eles, cada
+  // fronteira de palavra (que tem de reconhecer letras acentuadas, ver
+  // CLS_LETRA) obrigava a escrever "(?<![A-Za-zÀ-ÖØ-öø-ÿ\d])" por extenso:
+  //   {ini}  início de palavra  → não precedido de letra nem algarismo
+  //   {fim}  fim de palavra     → não seguido de letra
+  //   {L}    uma letra (incluindo acentuadas)
+  const MARCADORES_REGEX = [
+    ['{ini}', `(?<![${CLS_LETRA}\\d])`],
+    ['{fim}', `(?![${CLS_LETRA}])`],
+    ['{L}', `[${CLS_LETRA}]`],
+  ];
+
+  function expandirMarcadoresRegex(fonte) {
+    let s = String(fonte);
+    for (const [marcador, regex] of MARCADORES_REGEX) s = s.split(marcador).join(regex);
+    return s;
+  }
+
+  // Inverso: converte as formas por extenso (dados antigos) nos marcadores,
+  // para as listas ficarem legíveis. Troca textual exacta, por isso a
+  // expressão compilada é a mesma.
+  function compactarMarcadoresRegex(fonte) {
+    let s = String(fonte);
+    for (const [marcador, regex] of MARCADORES_REGEX) s = s.split(regex).join(marcador);
+    return s;
+  }
+
   function compilarRegraErro({ tipo, de, re, flags, correto }) {
     try {
-      if (tipo === 're') return { re: new RegExp(re, flags || 'gi'), correto };
+      if (tipo === 're') return { re: new RegExp(expandirMarcadoresRegex(re), flags || 'gi'), correto };
       if (tipo === 'abrev') return { re: reAbreviatura(de, flags), correto };
       return { re: reExpressao(de, flags), correto };
     } catch (erro) {
@@ -972,10 +999,11 @@
       if (!correto.trim()) continue;
       const flags = typeof d.flags === 'string' && /^[gimsuy]*$/.test(d.flags) ? d.flags : '';
       if (d.tipo === 're') {
-        const re = textoOuVazio(d.re);
+        const re = compactarMarcadoresRegex(textoOuVazio(d.re));
         if (!re) continue;
-        try { new RegExp(re, flags || 'gi'); } catch (e) { continue; }
-        out.push({ tipo: 're', re, ...(flags ? { flags } : {}), correto });
+        try { new RegExp(expandirMarcadoresRegex(re), flags || 'gi'); } catch (e) { continue; }
+        const desc = textoOuVazio(d.desc).trim().slice(0, 200);
+        out.push({ tipo: 're', re, ...(flags ? { flags } : {}), correto, ...(desc ? { desc } : {}) });
       } else {
         const tipo = d.tipo === 'abrev' ? 'abrev' : 'palavra';
         const de = textoOuVazio(d.de).trim();
@@ -3583,7 +3611,9 @@
 
   function mostrarEspacoFinal(texto) {
     const s = String(texto);
-    return /\s$/.test(s) ? [s.trimEnd(), el('span', { class: 'wptab-esp', title: 'Termina com um espaço', text: '␣' })] : [s];
+    return /\s$/.test(s)
+      ? [s.trimEnd(), el('span', { class: 'wptab-tag', style: 'margin-left:4px;', title: 'A substituição termina com um espaço, para não colar à palavra seguinte', text: '+ espaço' })]
+      : [s];
   }
 
   // Representação de uma entrada para as listas (só leitura e admin).
@@ -3598,7 +3628,14 @@
       const rotulo = (TIPOS_REGRA.find(([id]) => id === item.tipo) || TIPOS_REGRA[0])[1];
       caixa.appendChild(el('span', { class: 'wptab-tag', text: rotulo }));
       if (item.tipo === 're') {
-        caixa.appendChild(el('code', { style: 'font-size:11px;', text: `/${item.re}/${item.flags || 'gi'}` }));
+        caixa.appendChild(el('strong', { text: item.desc || 'Regra avançada (sem descrição)' }));
+        caixa.append(' → ', ...mostrarEspacoFinal(item.correto));
+        caixa.appendChild(el('div', {
+          style: 'font-family:monospace;font-size:10px;color:#888;margin-top:1px;',
+          title: 'Expressão regular. {ini} = início de palavra, {fim} = fim de palavra, {L} = uma letra',
+          text: `${item.re}${item.flags && item.flags !== 'gi' ? `   (flags: ${item.flags})` : ''}`,
+        }));
+        return caixa;
       } else {
         caixa.appendChild(el('strong', { text: item.de }));
         if (item.flags) caixa.appendChild(el('span', { class: 'wptab-tag', style: 'margin-left:4px;', text: `flags: ${item.flags}` }));
@@ -3611,7 +3648,7 @@
   function textoPesquisavel(seccao, item) {
     if (seccao.tipo === 'lista') return item;
     if (seccao.tipo === 'pares') return seccao.campos.map(([k]) => item[k]).join(' ');
-    return [item.de, item.re, item.correto].filter(Boolean).join(' ');
+    return [item.de, item.re, item.desc, item.correto].filter(Boolean).join(' ');
   }
 
   // ==================================================================
@@ -4369,6 +4406,8 @@
     const flags = inputAdm(`${prefixo}-flags`, item ? item.flags || '' : '', 'gi', 'width:38px;flex:none;');
     flags.title = 'Flags da expressão (vazio = gi: global, ignora maiúsculas)';
     const correto = inputAdm(`${prefixo}-correto`, item ? item.correto.trimEnd() : '', 'Correto', 'flex:1;');
+    const desc = inputAdm(`${prefixo}-desc`, item ? item.desc || '' : '', 'Descrição da regra (ex.: "Nossa Sra." → "N.ª Sr.ª")', 'flex:1 1 100%;order:10;');
+    const ajuda = el('div', { class: 'wptab-nota', style: 'flex:1 1 100%;margin:0;order:11;', text: 'Marcadores: {ini} = início de palavra · {fim} = fim de palavra · {L} = uma letra (incluindo acentuadas). Ex.: {ini}Nossa\\s+Sra\\.\\s*' });
     const espaco = el('input', { type: 'checkbox', title: 'Acrescentar um espaço no fim da substituição (necessário nas abreviaturas, para não colar à palavra seguinte)' });
     espaco.checked = item ? /\s$/.test(item.correto) : false;
     {
@@ -4377,7 +4416,10 @@
       espaco.addEventListener('change', () => { if (adm) adm.campos[fkEsp] = espaco.checked ? '1' : '0'; });
     }
     const atualizarDica = () => {
-      de.placeholder = tipo.value === 're' ? 'Expressão regular' : (tipo.value === 'abrev' ? 'Abreviatura errada (ex.: Trav.)' : 'Palavra errada (ex.: Joao)');
+      de.placeholder = tipo.value === 're' ? 'Expressão regular (ex.: {ini}Qt\\.(?!ª))' : (tipo.value === 'abrev' ? 'Abreviatura errada (ex.: Trav.)' : 'Palavra errada (ex.: Joao)');
+      const re = tipo.value === 're';
+      desc.style.display = re ? '' : 'none';
+      ajuda.style.display = re ? '' : 'none';
     };
     tipo.addEventListener('change', () => {
       atualizarDica();
@@ -4388,7 +4430,7 @@
     });
     atualizarDica();
     return {
-      nos: [tipo, de, flags, correto, el('label', { style: 'display:flex;align-items:center;gap:2px;font-size:11px;white-space:nowrap;', title: espaco.title }, espaco, '␣')],
+      nos: [tipo, de, flags, correto, el('label', { style: 'display:flex;align-items:center;gap:2px;font-size:11px;white-space:nowrap;', title: espaco.title }, espaco, '+ espaço'), desc, ajuda],
       ler: () => {
         const t = tipo.value;
         const v = de.value.trim();
@@ -4398,16 +4440,18 @@
         if (!c) { correto.classList.add('erro'); return { erro: 'Preenche a forma correta.' }; }
         if (f && !/^[gimsuy]*$/.test(f)) { flags.classList.add('erro'); return { erro: 'Flags inválidas (usa só g, i, m, s, u, y).' }; }
         try {
-          if (t === 're') new RegExp(v, f || 'gi');
+          if (t === 're') new RegExp(expandirMarcadoresRegex(v), f || 'gi');
           else if (t === 'abrev') reAbreviatura(v, f || undefined);
           else reExpressao(v, f || undefined);
         } catch (e) {
           de.classList.add('erro');
           return { erro: `Expressão inválida: ${e.message}` };
         }
-        const novo = t === 're' ? { tipo: 're', re: v } : { tipo: t, de: v };
+        const novo = t === 're' ? { tipo: 're', re: compactarMarcadoresRegex(v) } : { tipo: t, de: v };
         if (f) novo.flags = f;
         novo.correto = c + (espaco.checked ? ' ' : '');
+        const d = desc.value.trim();
+        if (t === 're' && d) novo.desc = d.slice(0, 200);
         return { item: novo };
       },
     };
@@ -4481,7 +4525,7 @@
     for (const n of campos.nos) {
       n.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); acrescentar(); } });
     }
-    painel.appendChild(el('div', { style: 'display:flex;gap:4px;align-items:center;' }, ...campos.nos, pos, botao('+ Acrescentar', acrescentar, 'pri')));
+    painel.appendChild(el('div', { style: 'display:flex;gap:4px;align-items:center;flex-wrap:wrap;' }, ...campos.nos, pos, botao('+ Acrescentar', acrescentar, 'pri')));
     if (espelho) {
       painel.appendChild(el('label', { style: 'display:flex;align-items:center;gap:4px;font-size:11px;color:#555;margin-top:3px;cursor:pointer;' }, espelho,
         'Acrescentar também à lista "Abreviação" (por extenso → abreviatura), no fim — confirma depois a posição.'));
